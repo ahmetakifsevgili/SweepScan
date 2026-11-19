@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The answer of a search: where (big), where along the row, sizes, a strip of the row, actions. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="10dp"
+    android:background="@drawable/answer_bg"
+    android:foreground="?attr/selectableItemBackground"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/answer_where"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#FFB300"
+        android:textSize="21sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/answer_pos"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/answer_sizes"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#B0B8C1"
+        android:textSize="14sp" />
+
+    <!-- The flight to the shelf in 3D (ShelfSceneView, added from code where OpenGL ES 3 runs). -->
+    <FrameLayout
+        android:id="@+id/answer_scene_box"
+        android:layout_width="match_parent"
+        android:layout_height="240dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/scene_placeholder"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/answer_scene_wait"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/shelf3d_loading"
+            android:textColor="#8B95A1"
+            android:textSize="13sp" />
+    </FrameLayout>
+
+    <!-- The shelf as it was when the label was last read (ShelfMemory), the label framed. -->
+    <FrameLayout
+        android:id="@+id/answer_photo_box"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/answer_photo"
+            android:layout_width="match_parent"
+            android:layout_height="168dp"
+            android:background="#000000"
+            android:contentDescription="@string/answer_photo_desc"
+            android:scaleType="centerCrop" />
+
+        <TextView
+            android:id="@+id/answer_photo_caption"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="8dp"
+            android:background="@drawable/pill"
+            android:backgroundTint="#CC0E1013"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="3dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+    </FrameLayout>
+
+    <com.sweepscan.ui.FrontView
+        android:id="@+id/answer_strip"
+        android:layout_width="match_parent"
+        android:layout_height="96dp"
+        android:layout_marginTop="8dp" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/answer_actions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+</LinearLayout>

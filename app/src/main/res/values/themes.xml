@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- No action bar: on Android 15+ (edge to edge) it overlapped the review screen's summary. -->
+    <style name="Theme.SweepScan" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorOnPrimary">#1B1F24</item>
+        <item name="colorPrimaryContainer">@color/brand</item>
+        <item name="colorOnPrimaryContainer">#1B1F24</item>
+        <item name="colorSecondaryContainer">#4DC6E81B</item>
+        <item name="colorOnSecondaryContainer">#FFFFFF</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="android:windowBackground">@color/surface</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="colorAccent">@color/brand</item>
+        <!-- Android 12+ start screen: the icon on the app's own dark background, no white flash. -->
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/surface</item>
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="31">@color/surface</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@mipmap/ic_launcher</item>
+    </style>
+
+    <!-- The scan screen is always dark: camera preview, outdoor-bright stock room lights. -->
+    <style name="Theme.SweepScan.Fullscreen" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorOnPrimary">#1B1F24</item>
+        <item name="colorPrimaryContainer">@color/brand</item>
+        <item name="colorOnPrimaryContainer">#1B1F24</item>
+        <item name="colorSecondaryContainer">#4DC6E81B</item>
+        <item name="colorOnSecondaryContainer">#FFFFFF</item>
+        <item name="colorAccent">@color/brand</item>
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+    </style>
+
+    <!-- Undo / Finish on the camera screen: translucent pills either side of the main button. -->
+    <style name="BarButton" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">64dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:maxLines">1</item>
+        <item name="backgroundTint">#33FFFFFF</item>
+        <item name="iconTint">#FFFFFF</item>
+        <item name="iconGravity">top</item>
+        <item name="iconPadding">2dp</item>
+        <item name="iconSize">22dp</item>
+        <item name="cornerRadius">32dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:paddingLeft">4dp</item>
+        <item name="android:paddingRight">4dp</item>
+    </style>
+
+    <style name="RowButton" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginHorizontal">4dp</item>
+    </style>
+
+
+    <!-- Round icon buttons floating over the camera picture (torch, settings); lit when on. -->
+    <style name="GlassIcon" parent="Widget.Material3.Button.IconButton.Filled">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="backgroundTint">@color/glass_icon_bg</item>
+        <item name="iconTint">@color/glass_icon_tint</item>
+        <item name="iconSize">22dp</item>
+    </style>
+
+    <!-- Task name / PC status chips over the camera picture. -->
+    <style name="GlassChip" parent="Widget.Material3.Chip.Assist">
+        <item name="chipBackgroundColor">#66000000</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipCornerRadius">999dp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- One step of the zoom capsule. -->
+    <style name="ZoomButton" parent="Widget.Material3.Button.TextButton">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:paddingLeft">0dp</item>
+        <item name="android:paddingRight">0dp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/zoom_text</item>
+        <item name="backgroundTint">@color/zoom_bg</item>
+        <item name="cornerRadius">20dp</item>
+    </style>
+</resources>

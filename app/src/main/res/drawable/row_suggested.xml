@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Outline of the suggested row in the row list (Okabe-Ito blue, as the route). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="14dp" />
+    <stroke android:width="2dp" android:color="#56B4E9" />
+</shape>

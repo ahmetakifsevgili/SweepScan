@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long press on the app icon: the four jobs, straight away. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:icon="@drawable/sc_say"
+        android:shortcutId="say"
+        android:shortcutLongLabel="@string/sc_say_long"
+        android:shortcutShortLabel="@string/sc_say">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.sweepscan.ui.HomeActivity"
+            android:targetPackage="com.sweepscan">
+            <extra android:name="shortcut" android:value="say" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:icon="@drawable/sc_find"
+        android:shortcutId="find"
+        android:shortcutLongLabel="@string/home_find"
+        android:shortcutShortLabel="@string/sc_find">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.sweepscan.ui.HomeActivity"
+            android:targetPackage="com.sweepscan">
+            <extra android:name="shortcut" android:value="find" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:icon="@drawable/sc_requests"
+        android:shortcutId="requests"
+        android:shortcutLongLabel="@string/requests_title"
+        android:shortcutShortLabel="@string/sc_requests">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.sweepscan.ui.HomeActivity"
+            android:targetPackage="com.sweepscan">
+            <extra android:name="shortcut" android:value="requests" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:icon="@drawable/sc_rows"
+        android:shortcutId="rows"
+        android:shortcutLongLabel="@string/home_rows"
+        android:shortcutShortLabel="@string/sc_rows">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.sweepscan.ui.HomeActivity"
+            android:targetPackage="com.sweepscan">
+            <extra android:name="shortcut" android:value="rows" />
+        </intent>
+    </shortcut>
+</shortcuts>

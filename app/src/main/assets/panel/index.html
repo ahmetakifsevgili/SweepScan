@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SweepScan Depo</title>
+<style>
+  :root {
+    --bg: #0E1013; --surface: #171A1E; --surface2: #1F2329; --line: #2A3038;
+    --text: #F2F5F7; --muted: #8B95A1; --soft: #B0B8C1;
+    --amber: #FFB300; --blue: #56B4E9; --green: #3DDC97; --red: #FF8A80; --brand: #C6E81B;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; }
+  header .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  header .dot.on { background: var(--green); }
+  header .grow { flex: 1; }
+  header .clock { color: var(--soft); font-variant-numeric: tabular-nums; }
+  main { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px 24px; }
+  @media (max-width: 980px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; } }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  h2 { font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); margin: 0 0 10px; font-weight: 600; }
+  .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; grid-column: 1 / -1; }
+  @media (max-width: 980px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .kpi .v { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .l { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.t { color: var(--soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td .what { font-weight: 600; }
+  td .where { color: var(--soft); font-size: 12px; }
+  .badge { display: inline-block; border-radius: 99px; padding: 2px 10px; font-size: 12px; font-weight: 700; color: #121418; white-space: nowrap; }
+  .NEW { background: var(--amber); } .LOOKING { background: var(--blue); } .SENT { background: var(--green); } .MISSING { background: var(--red); }
+  .acts button { background: var(--surface2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; margin: 2px 2px 0 0; cursor: pointer; font: inherit; font-size: 12px; }
+  .acts button:hover { border-color: var(--soft); }
+  .empty { color: var(--muted); padding: 10px 0; }
+  .twin { position: relative; height: 520px; border-radius: 10px; overflow: hidden; background: var(--bg); touch-action: none; }
+  .twin canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .twin .help { position: absolute; left: 10px; bottom: 8px; color: var(--muted); font-size: 12px; pointer-events: none; }
+  .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  @media (max-width: 640px) { .row2 { grid-template-columns: minmax(0, 1fr); } .twin { height: 380px; } }
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding-top: 6px; }
+  .bars div { flex: 1; background: var(--blue); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; }
+  .bars div:hover::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--line); padding: 2px 6px; border-radius: 6px; white-space: nowrap; font-size: 12px; margin-bottom: 4px; }
+  .axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .top li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .top { list-style: none; margin: 0; padding: 0; }
+  .pinbox { max-width: 340px; margin: 18vh auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .pinbox input { width: 100%; font-size: 28px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); color: var(--text); letter-spacing: .3em; }
+  .pinbox button { margin-top: 12px; width: 100%; padding: 10px; border: 0; border-radius: 10px; background: var(--brand); color: #121418; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .pinbox p { color: var(--soft); }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>SweepScan · Depo paneli</h1>
+  <span class="grow"></span>
+  <span class="clock" id="clock"></span>
+</header>
+<div id="app"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const STATUS = { NEW: 'Alındı', LOOKING: 'Bakılıyor', SENT: 'Gönderildi', MISSING: 'Yok' };
+let pin = new URLSearchParams(location.search).get('pin');
+try { pin = pin || localStorage.getItem('sweepscan-pin'); } catch (e) {}
+
+function api(path, opts = {}) {
+  return fetch(path, { ...opts, headers: { 'X-Pin': pin || '', 'Content-Type': 'application/json' } }).then(async r => {
+    if (r.status === 401) { askPin(); throw new Error('pin'); }
+    if (r.status === 429) { askPin('Çok fazla yanlış PIN. Bir dakika bekleyip tekrar dene.'); throw new Error('wait'); }
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  });
+}
+
+let timer = null;
+function askPin(note) {
+  if (timer) { clearInterval(timer); timer = null; }
+  if ($('#pin')) return;
+  $('#app').innerHTML = `<div class="pinbox"><h2>Depo PIN'i</h2>
+    <p>${note || "Depo telefonunda Ayarlar → Mağaza bağlantısı'nda yazan 4 haneli PIN."}</p>
+    <input id="pin" inputmode="numeric" maxlength="6" autofocus><button id="go">Aç</button></div>`;
+  const go = () => { pin = $('#pin').value.trim(); try { localStorage.setItem('sweepscan-pin', pin); } catch (e) {} start(); };
+  $('#go').onclick = go; $('#pin').onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+
+const hhmm = t => new Date(t).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function layout() {
+  $('#app').innerHTML = `<main>
+    <div class="kpis" id="kpis"></div>
+    <section><h2>Talepler (canlı)</h2><div id="queue"></div></section>
+    <section><h2>Depolar · 3D</h2><div class="twin" id="twin"><canvas id="gl"></canvas><canvas id="labels"></canvas>
+      <div class="help">Sürükle: döndür · sağ tık / Shift: kaydır · tekerlek: yakınlaş · çift tık: hepsi</div></div>
+      <div class="row2"><div><h2>Saatlere göre (bugün)</h2><div class="bars" id="bars"></div><div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div></div>
+      <div><h2>En çok istenen (bugün)</h2><ul class="top" id="top"></ul></div></div>
+    </section></main>`;
+}
+
+function kpis(s) {
+  const k = [
+    ['Bugün talep', s.today], ['Gönderildi', s.sent], ['Yok', s.missing], ['Bekleyen', s.waiting],
+    ['Ort. yanıt (dk)', s.avgMinutes == null ? '–' : s.avgMinutes.toFixed(1)], ['Mağaza uygulamasından', s.shop],
+  ];
+  $('#kpis').innerHTML = k.map(([l, v]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  const max = Math.max(1, ...s.byHour);
+  $('#bars').innerHTML = s.byHour.map((n, h) => `<div style="height:${n / max * 100}%" data-tip="${String(h).padStart(2, '0')}:00 · ${n} talep"></div>`).join('');
+  $('#top').innerHTML = s.top.length ? s.top.map(t => `<li><span>${esc(t.model)}</span><b>${t.count}</b></li>`).join('') : '<li class="empty">Henüz yok</li>';
+}
+
+function queue(list) {
+  if (!list.length) { $('#queue').innerHTML = '<div class="empty">Talep yok.</div>'; return; }
+  list.sort((a, b) => (b.status === 'NEW' || b.status === 'LOOKING') - (a.status === 'NEW' || a.status === 'LOOKING') || b.time - a.time);
+  $('#queue').innerHTML = `<table><thead><tr><th>Saat</th><th>Ne</th><th>Kim</th><th>Durum</th></tr></thead><tbody>${
+    list.slice(0, 40).map(r => {
+      const open = r.status === 'NEW' || r.status === 'LOOKING';
+      const what = [r.model || r.text, r.size].filter(Boolean).join(' · ');
+      const wait = open ? ` · ${Math.max(0, Math.round((Date.now() - r.time) / 60000))} dk` : '';
+      return `<tr><td class="t">${hhmm(r.time)}${wait}</td>
+        <td><div class="what">${esc(what)}</div><div class="where">${esc(r.where || 'yeri bilinmiyor')}</div></td>
+        <td>${esc(r.from)}<div class="where">${r.source === 'shop' ? 'mağaza uygulaması' : 'WhatsApp'}</div></td>
+        <td><span class="badge ${r.status}">${STATUS[r.status] || r.status}</span>${open ? `<div class="acts">
+          <button data-id="${r.id}" data-s="LOOKING">Bakıyorum</button><button data-id="${r.id}" data-s="SENT">Gönderildi</button><button data-id="${r.id}" data-s="MISSING">Yok</button></div>` : ''}</td></tr>`;
+    }).join('')}</tbody></table>`;
+  $('#queue').querySelectorAll('button').forEach(b => b.onclick = () =>
+    api(`/api/requests/${b.dataset.id}/status`, { method: 'POST', body: JSON.stringify({ status: b.dataset.s }) }).then(tick));
+}
+
+let lastOpen = '';
+function tick() {
+  Promise.all([api('/api/requests'), api('/api/stats')]).then(([q, s]) => {
+    $('#dot').classList.add('on');
+    queue(q.requests); kpis(s);
+    const open = q.requests.filter(r => r.status === 'NEW' || r.status === 'LOOKING').map(r => r.code).join(',');
+    if (open !== lastOpen) { lastOpen = open; loadScene(); }
+  }).catch(() => $('#dot').classList.remove('on'));
+}
+
+// ---- 3D: the app's own scene and shaders, drawn with WebGL2 ------------------------------------
+const M = {
+  mul(a, b) { const r = new Float32Array(16); for (let c = 0; c < 4; c++) for (let rw = 0; rw < 4; rw++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + rw] * b[c * 4 + k]; r[c * 4 + rw] = s; } return r; },
+  persp(f, a, n, fa) { const t = 1 / Math.tan(f / 2), r = new Float32Array(16); r[0] = t / a; r[5] = t; r[10] = (fa + n) / (n - fa); r[11] = -1; r[14] = 2 * fa * n / (n - fa); return r; },
+  look(e, t) {
+    const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], nrm = v => { const l = Math.hypot(...v) || 1; return v.map(x => x / l); },
+      cr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const f = nrm(sub(t, e)), s = nrm(cr(f, [0, 1, 0])), u = cr(s, f), r = new Float32Array(16);
+    r[0] = s[0]; r[4] = s[1]; r[8] = s[2]; r[1] = u[0]; r[5] = u[1]; r[9] = u[2]; r[2] = -f[0]; r[6] = -f[1]; r[10] = -f[2];
+    r[12] = -dot(s, e); r[13] = -dot(u, e); r[14] = dot(f, e); r[15] = 1; return r;
+  },
+};
+const FOV = 0.78;
+let gl, prog = {}, buf = {}, scene = null, cam = { t: [30, 0, 15], yaw: 1.25, pitch: 0.95, d: 90 }, home = null, t0 = performance.now();
+
+function eye() { const c = Math.cos(cam.pitch); return [cam.t[0] + c * Math.sin(cam.yaw) * cam.d, cam.t[1] + Math.sin(cam.pitch) * cam.d, cam.t[2] + c * Math.cos(cam.yaw) * cam.d]; }
+function viewProj(w, h) { return M.mul(M.persp(FOV, w / h, Math.min(4, Math.max(0.1, cam.d * 0.04)), cam.d * 4 + 100), M.look(eye(), cam.t)); }
+
+function initGl() {
+  const c = $('#gl');
+  gl = c.getContext('webgl2', { antialias: true });
+  if (!gl) { $('#twin').insertAdjacentHTML('beforeend', '<div class="empty" style="padding:16px">Bu tarayıcı WebGL2 desteklemiyor.</div>'); return false; }
+  const ro = new ResizeObserver(() => { const r = c.getBoundingClientRect(), d = devicePixelRatio || 1; for (const cv of [c, $('#labels')]) { cv.width = r.width * d; cv.height = r.height * d; } draw(); });
+  ro.observe(c);
+  controls(c.parentElement);
+  requestAnimationFrame(frame);
+  return true;
+}
+
+function compile(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; }
+function program(vs, fs) { const p = gl.createProgram(); gl.attachShader(p, compile(gl.VERTEX_SHADER, vs)); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); return p; }
+const CUBE = (() => { const f = [[0,0,1,-.5,-.5,.5,.5,-.5,.5,.5,.5,.5,-.5,.5,.5],[0,0,-1,.5,-.5,-.5,-.5,-.5,-.5,-.5,.5,-.5,.5,.5,-.5],[1,0,0,.5,-.5,.5,.5,-.5,-.5,.5,.5,-.5,.5,.5,.5],[-1,0,0,-.5,-.5,-.5,-.5,-.5,.5,-.5,.5,.5,-.5,.5,-.5],[0,1,0,-.5,.5,.5,.5,.5,.5,.5,.5,-.5,-.5,.5,-.5],[0,-1,0,-.5,-.5,-.5,.5,-.5,-.5,.5,-.5,.5,-.5,-.5,.5]]; const o = []; for (const q of f) for (const i of [0,1,2,0,2,3]) o.push(q[3+i*3], q[4+i*3], q[5+i*3], q[0], q[1], q[2]); return new Float32Array(o); })();
+
+function upload(s) {
+  if (!prog.box) { prog.box = program(s.shaders.BOX_VS, s.shaders.BOX_FS); prog.floor = program(s.shaders.FLOOR_VS, s.shaders.FLOOR_FS); buf.cube = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf.cube); gl.bufferData(gl.ARRAY_BUFFER, CUBE, gl.STATIC_DRAW); }
+  const vao = data => {
+    const v = gl.createVertexArray(); gl.bindVertexArray(v); gl.bindBuffer(gl.ARRAY_BUFFER, buf.cube);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+    const a = (i, n, o) => { gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, n, gl.FLOAT, false, 52, o); gl.vertexAttribDivisor(i, 1); };
+    a(2, 3, 0); a(3, 3, 12); a(4, 4, 24); a(5, 3, 40); gl.bindVertexArray(null); return v;
+  };
+  buf.o = vao(s.opaque); buf.oc = s.opaque.length / 13; buf.t = vao(s.transparent); buf.tc = s.transparent.length / 13;
+  buf.f = gl.createVertexArray(); gl.bindVertexArray(buf.f); const fb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, fb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s.floor), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0); gl.bindVertexArray(null); buf.fc = s.floor.length / 3;
+  scene = s;
+  if (!home) { const [x0, z0, x1, z1] = s.bounds; home = { t: [(x0 + x1) / 2, 0, (z0 + z1) / 2], yaw: -0.32, pitch: 0.95, d: Math.max(x1 - x0, z1 - z0) * 1.3 }; cam = { ...home, t: [...home.t] }; }
+  draw();
+}
+
+function loadScene() { if (!gl && !initGl()) return; api('/api/scene').then(upload).catch(() => {}); }
+
+function frame() {
+  requestAnimationFrame(frame);
+  draw();
+}
+
+/** One picture; also called directly (scene loaded, resized, moved) so it shows even where animation frames are paused. */
+function draw() {
+  if (!scene || !gl) return;
+  const c = $('#gl'), w = c.width, h = c.height; if (!w || !h) return;
+  const vp = viewProj(w, h), e = eye(), fog = [cam.d + 6, cam.d * 2.2 + 30], time = (performance.now() - t0) / 1000;
+  gl.viewport(0, 0, w, h); gl.clearColor(0x0E / 255, 0x10 / 255, 0x13 / 255, 1); gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(prog.floor); gl.uniformMatrix4fv(gl.getUniformLocation(prog.floor, 'uViewProj'), false, vp); gl.uniform3fv(gl.getUniformLocation(prog.floor, 'uEye'), e); gl.uniform2fv(gl.getUniformLocation(prog.floor, 'uFog'), fog);
+  gl.disable(gl.CULL_FACE); gl.bindVertexArray(buf.f); gl.drawArrays(gl.TRIANGLES, 0, buf.fc); gl.enable(gl.CULL_FACE);
+  gl.useProgram(prog.box); gl.uniformMatrix4fv(gl.getUniformLocation(prog.box, 'uViewProj'), false, vp); gl.uniform3fv(gl.getUniformLocation(prog.box, 'uEye'), e);
+  gl.uniform1f(gl.getUniformLocation(prog.box, 'uTime'), time); gl.uniform2fv(gl.getUniformLocation(prog.box, 'uFog'), fog);
+  gl.bindVertexArray(buf.o); gl.drawArraysInstanced(gl.TRIANGLES, 0, 36, buf.oc);
+  if (buf.tc) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.depthMask(false); gl.disable(gl.CULL_FACE); gl.bindVertexArray(buf.t); gl.drawArraysInstanced(gl.TRIANGLES, 0, 36, buf.tc); gl.depthMask(true); gl.disable(gl.BLEND); gl.enable(gl.CULL_FACE); }
+  labels(vp, w, h);
+}
+
+function labels(vp, w, h) {
+  const g = $('#labels').getContext('2d'), d = devicePixelRatio || 1;
+  g.clearRect(0, 0, w, h); g.textAlign = 'center';
+  for (const l of scene.labels) {
+    const [x, y, z] = l.p, cx = vp[0] * x + vp[4] * y + vp[8] * z + vp[12], cy = vp[1] * x + vp[5] * y + vp[9] * z + vp[13], cw = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
+    if (cw <= 0) continue;
+    const px = (cx / cw + 1) / 2 * w, py = (1 - cy / cw) / 2 * h;
+    if (l.s === 'DEPOT') { g.font = `bold ${15 * d}px system-ui`; g.fillStyle = '#F2F5F7'; g.shadowColor = '#000c'; g.shadowBlur = 6 * d; g.fillText(l.t, px, py); g.shadowBlur = 0; }
+    else if (l.s === 'ROW') {
+      if (cam.d > 70 && !l.a) continue;
+      g.font = `bold ${11 * d}px system-ui`; const tw = g.measureText(l.t).width + 12 * d, th = 18 * d;
+      g.fillStyle = l.a ? '#FFB300' : 'rgba(27,32,38,.85)'; g.beginPath(); g.roundRect(px - tw / 2, py - th / 2, tw, th, th / 2); g.fill();
+      g.fillStyle = l.a ? '#241A00' : '#E3E8ED'; g.fillText(l.t, px, py + 4 * d);
+    } else if (l.s === 'ENTRANCE') { g.font = `bold ${12 * d}px system-ui`; g.fillStyle = '#3DDC97'; g.fillText(l.t, px, py); }
+  }
+}
+
+function controls(el) {
+  let drag = null;
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  el.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey }; el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointermove', e => {
+    if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) {
+      const k = cam.d * 2 * Math.tan(FOV / 2) / el.clientHeight, r = [Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)], f = [-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)];
+      for (let i = 0; i < 3; i++) cam.t[i] += -r[i] * dx * k + f[i] * dy * k / Math.max(0.3, Math.sin(cam.pitch));
+    } else { cam.yaw -= dx * 0.006; cam.pitch = Math.min(1.45, Math.max(0.12, cam.pitch + dy * 0.005)); }
+    draw();
+  });
+  el.addEventListener('pointerup', () => drag = null);
+  el.addEventListener('wheel', e => { e.preventDefault(); cam.d = Math.min(220, Math.max(2.5, cam.d * Math.exp(e.deltaY * 0.001))); draw(); }, { passive: false });
+  el.addEventListener('dblclick', () => { if (home) cam = { ...home, t: [...home.t] }; draw(); });
+}
+
+function start() { layout(); tick(); if (timer) clearInterval(timer); timer = setInterval(tick, 3000); }
+setInterval(() => $('#clock').textContent = new Date().toLocaleTimeString('tr-TR'), 1000);
+if (pin) start(); else askPin();
+</script>
+</body>
+</html>

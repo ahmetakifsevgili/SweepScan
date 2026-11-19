@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand: primary actions only. -->
+    <color name="brand">#C6E81B</color>
+    <!-- One meaning per colour on every screen: counted / sent, in progress / queued, problem. -->
+    <color name="ok">#2ECC71</color>
+    <color name="busy">#FFB300</color>
+    <color name="problem">#E53935</color>
+    <color name="surface">#14171B</color>
+    <color name="surface_high">#1F242A</color>
+    <color name="text_dim">#A6ADB4</color>
+    <color name="scrim">#B3000000</color>
+</resources>

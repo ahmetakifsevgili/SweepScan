@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The full version only: the WhatsApp request watcher. A notification listener in an app installed
+    from a downloaded file is blocked by Play Protect, so this version is installed from the PC (adb);
+    the "dosya" version leaves it out and takes requests through Share instead.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Reads only the request group's WhatsApp notifications (Ayarlar → WhatsApp talepleri). -->
+        <service
+            android:name=".request.RequestWatcher"
+            android:exported="true"
+            android:label="@string/req_service_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

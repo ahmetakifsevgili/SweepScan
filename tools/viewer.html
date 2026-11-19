@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SweepScan recording viewer</title>
+<!--
+  Opens a SweepScan field recording (Download/SweepScan on the phone) and plays it back: the
+  analysed frames with the frames the app drew, what was counted when, and how the count compares
+  with a hand count (.expected). One file, no dependencies, works offline.
+
+  Two ways to load:
+    - choose or drop the recording folder (file://, nothing leaves the computer);
+    - ?dir=<folder url>&log=<name>.jsonl when served over http (used for automated checks).
+  Log format: see FieldLogger.kt.
+-->
+<style>
+:root {
+  --surface: #fcfcfb; --surface-2: #f2f1ed; --text: #0b0b0b; --text-2: #52514e; --hair: #e1e0d9; --axis: #c3c2b7;
+  --good: #0ca30c; --warn: #fab219; --crit: #d03b3b; --good-text: #006300; --accent: #2a5bd7;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --surface: #1a1a19; --surface-2: #242422; --text: #f0efec; --text-2: #c3c2b7; --hair: #2c2c2a; --axis: #383835;
+          --good-text: #0ca30c; --accent: #8fb0ff; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--surface); color: var(--text); font: 14px/1.4 system-ui, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+button, select, input { font: inherit; color: inherit; }
+header { padding: 10px 16px; border-bottom: 1px solid var(--hair); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+header h1 { font-size: 16px; margin: 0; }
+.sub { color: var(--text-2); font-size: 12px; }
+.btn { background: var(--surface-2); border: 1px solid var(--axis); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.btn:hover { border-color: var(--text-2); }
+.btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+select { background: var(--surface-2); border: 1px solid var(--axis); border-radius: 6px; padding: 4px 6px; max-width: 46ch; }
+#tiles { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 0; }
+.tile { border: 1px solid var(--hair); border-radius: 8px; padding: 6px 12px; min-width: 92px; }
+.tile .k { color: var(--text-2); font-size: 11px; }
+.tile .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile .v .ic { font-size: 13px; margin-right: 3px; }
+main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 1fr) minmax(300px, 420px); gap: 12px; padding: 10px 16px; }
+#stageWrap { position: relative; background: #101012; border-radius: 8px; min-height: 240px; overflow: hidden; }
+#stage { position: absolute; inset: 0; width: 100%; height: 100%; }
+#legend { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.62); color: #fff; border-radius: 6px; padding: 4px 8px; font-size: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+#legend i { display: inline-block; width: 12px; height: 12px; border: 2px solid; vertical-align: -2px; margin-right: 4px; }
+#noimg { position: absolute; right: 8px; top: 8px; background: rgba(0,0,0,.62); color: #fff; border-radius: 6px; padding: 3px 8px; font-size: 12px; }
+aside { min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+section.card { border: 1px solid var(--hair); border-radius: 8px; padding: 8px 10px; }
+section.card h2 { font-size: 13px; margin: 0 0 6px; }
+#countScroll { max-height: 38vh; overflow: auto; }
+#counts thead th { position: sticky; top: 0; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 500; color: var(--text-2); font-size: 11px; border-bottom: 1px solid var(--hair); padding: 2px 4px; }
+td { padding: 2px 4px; border-bottom: 1px solid var(--hair); }
+td.n, th.n { text-align: right; }
+tr.new td { background: color-mix(in srgb, var(--good) 16%, transparent); }
+.st { white-space: nowrap; font-size: 12px; }
+.st.ok { color: var(--good-text); } .st.over, .st.under { color: var(--crit); }
+#info { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+#info dt { color: var(--text-2); } #info dd { margin: 0; }
+#events { max-height: 180px; overflow: auto; font-size: 12px; }
+#events div { padding: 1px 4px; cursor: pointer; border-radius: 4px; display: flex; gap: 8px; }
+#events div:hover { background: var(--surface-2); }
+#events .t { color: var(--text-2); min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+footer { border-top: 1px solid var(--hair); padding: 8px 16px 10px; }
+#controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+#clock { font-variant-numeric: tabular-nums; min-width: 150px; }
+#tlWrap { position: relative; }
+#timeline { width: 100%; height: 74px; display: block; cursor: pointer; }
+#tip { position: absolute; bottom: 78px; background: var(--text); color: var(--surface); padding: 4px 8px; border-radius: 6px; font-size: 12px; pointer-events: none; white-space: nowrap; display: none; transform: translateX(-50%); }
+#drop { margin: auto; text-align: center; max-width: 560px; padding: 32px; border: 2px dashed var(--axis); border-radius: 12px; }
+#drop.over { border-color: var(--accent); }
+#drop p { color: var(--text-2); }
+#err { color: var(--crit); padding: 0 16px; }
+.hidden { display: none !important; }
+label.chk { display: inline-flex; gap: 4px; align-items: center; }
+@media (max-width: 820px) { main { grid-template-columns: 1fr; } #stageWrap { min-height: 60vh; } }
+</style>
+</head>
+<body>
+<header>
+  <h1 data-t="title"></h1>
+  <span class="sub" id="recInfo"></span>
+  <span style="flex:1"></span>
+  <select id="recSelect" class="hidden" aria-label="recording"></select>
+  <button class="btn" id="openBtn" data-t="open"></button>
+  <input type="file" id="dirInput" webkitdirectory multiple class="hidden">
+</header>
+<div id="err" role="alert"></div>
+
+<div id="drop">
+  <h2 data-t="dropTitle"></h2>
+  <p data-t="dropBody"></p>
+  <button class="btn" id="openBtn2" data-t="open"></button>
+</div>
+
+<div id="app" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
+  <div id="tiles"></div>
+  <main>
+    <div id="stageWrap">
+      <canvas id="stage"></canvas>
+      <div id="noimg" class="hidden"></div>
+      <div id="legend"></div>
+    </div>
+    <aside>
+      <section class="card">
+        <h2 id="countTitle"></h2>
+        <div id="countScroll"><table id="counts"><thead><tr><th data-t="barcode"></th><th class="n" data-t="qty"></th><th class="n exp" data-t="expected"></th><th class="exp" data-t="status"></th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="card"><h2 data-t="thisFrame"></h2><dl id="info"></dl></section>
+      <section class="card"><h2 data-t="events"></h2><div id="events"></div></section>
+    </aside>
+  </main>
+  <footer>
+    <div id="controls">
+      <button class="btn" id="play" aria-label="play/pause">▶</button>
+      <button class="btn" id="prev" aria-label="previous frame">◀</button>
+      <button class="btn" id="next" aria-label="next frame">▶|</button>
+      <select id="speed" aria-label="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
+      <span id="clock"></span>
+      <button class="btn" id="nextCount" data-t="nextCount"></button>
+      <button class="btn" id="nextUnread" data-t="nextUnread"></button>
+      <label class="chk"><input type="checkbox" id="showDets"> <span data-t="rawDets"></span></label>
+      <label class="chk"><input type="checkbox" id="showGhost" checked> <span data-t="ghostImg"></span></label>
+    </div>
+    <div id="tlWrap"><canvas id="timeline"></canvas><div id="tip"></div></div>
+  </footer>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- text
+const TEXT = {
+  en: {
+    title: "SweepScan recording viewer", open: "Open recording folder…",
+    dropTitle: "Drop a SweepScan recording folder here",
+    dropBody: "Copy Download/SweepScan from the phone, then drop that folder (or a single .jsonl file) here. Nothing is uploaded: the files are read on this computer only.",
+    barcode: "Barcode", qty: "Qty", expected: "Hand count", status: "Status", thisFrame: "This frame", events: "Events",
+    nextCount: "Next count ⏭", nextUnread: "Next unread ⏭", rawDets: "Raw detections", ghostImg: "Carry last image",
+    countSoFar: (b, v) => `Counted so far: ${b} boxes · ${v} barcodes`,
+    tDuration: "Duration", tFrames: "Frames", tFps: "Frames/s", tBoxes: "Boxes counted", tVariants: "Barcodes",
+    tExpected: "Hand count", tOver: "Over", tUnder: "Missing", tImages: "Saved images",
+    tUnreadWarn: "Seen, not read", tFewReads: "Too few reads",
+    ok: "✓ correct", over: n => `▲ ${n} too many`, under: n => `▼ ${n} missing`, notExpected: "▲ not in hand count",
+    lCounted: "counted", lCandidate: "reading", lUnread: "seen, not read", lHidden: "dashed: out of view",
+    rowCount: "Counts", rowUnread: "Unread", rowImages: "Images", paused: "paused",
+    noImage: "no saved image for this frame", carried: s => `image from ${s} s earlier, shifted`,
+    iTime: "Time", iFrame: "Frame", iFps: "Frame rate", iExposure: "Exposure", iIso: "ISO", iFocus: "Focus", iLuma: "Label brightness",
+    iMotion: "Scene shift", iSim: "Rotation / scale", iBlur: "Blur estimate", iTimes: "ML Kit / zxing / flow", iDets: "Detections", iTracks: "Tracks",
+    ev: { count: "counted", pause: "paused", resume: "resumed", reset: "tracking reset", undo: "undo", sweep_delete: "sweep deleted",
+          settings: "settings changed", camera_open: "camera opened", review_open: "review opened", new_session: "new session",
+          send_all: "send to DİA", manual: "added by hand", remove: "removed" },
+    errNoLog: "No sweepscan-*.jsonl recording found in that folder.", errRead: "Could not read the recording: ",
+    oldLog: "older recording: no drawn frames logged, showing detections",
+  },
+  tr: {
+    title: "SweepScan kayıt inceleme", open: "Kayıt klasörü aç…",
+    dropTitle: "SweepScan kayıt klasörünü buraya bırak",
+    dropBody: "Telefondaki İndirilenler/SweepScan klasörünü bilgisayara kopyala, sonra o klasörü (ya da tek bir .jsonl dosyasını) buraya bırak. Hiçbir şey yüklenmez; dosyalar yalnızca bu bilgisayarda okunur.",
+    barcode: "Barkod", qty: "Adet", expected: "Elle sayım", status: "Durum", thisFrame: "Bu kare", events: "Olaylar",
+    nextCount: "Sonraki sayım ⏭", nextUnread: "Sonraki okunamayan ⏭", rawDets: "Ham tespitler", ghostImg: "Son resmi taşı",
+    countSoFar: (b, v) => `Şu ana kadar: ${b} kutu · ${v} barkod`,
+    tDuration: "Süre", tFrames: "Kare", tFps: "Kare/sn", tBoxes: "Sayılan kutu", tVariants: "Barkod çeşidi",
+    tExpected: "Elle sayım", tOver: "Fazla", tUnder: "Eksik", tImages: "Kayıtlı resim",
+    tUnreadWarn: "Görülüp okunamayan", tFewReads: "Yetersiz okunan",
+    ok: "✓ doğru", over: n => `▲ ${n} fazla`, under: n => `▼ ${n} eksik`, notExpected: "▲ elle sayımda yok",
+    lCounted: "sayıldı", lCandidate: "okunuyor", lUnread: "görüldü, okunamadı", lHidden: "kesikli: kadraj dışı",
+    rowCount: "Sayım", rowUnread: "Okunamayan", rowImages: "Resim", paused: "duraklatıldı",
+    noImage: "bu karenin kayıtlı resmi yok", carried: s => `${s} sn önceki resim, kaydırılmış`,
+    iTime: "Zaman", iFrame: "Kare", iFps: "Kare hızı", iExposure: "Pozlama", iIso: "ISO", iFocus: "Odak", iLuma: "Etiket parlaklığı",
+    iMotion: "Sahne kayması", iSim: "Dönme / ölçek", iBlur: "Bulanıklık tahmini", iTimes: "ML Kit / zxing / akış", iDets: "Tespitler", iTracks: "İzler",
+    ev: { count: "sayıldı", pause: "duraklatıldı", resume: "devam", reset: "izler sıfırlandı", undo: "geri alındı", sweep_delete: "tarama silindi",
+          settings: "ayar değişti", camera_open: "kamera açıldı", review_open: "gözden geçirme açıldı", new_session: "yeni oturum",
+          send_all: "DİA'ya gönder", manual: "elle eklendi", remove: "çıkarıldı" },
+    errNoLog: "Bu klasörde sweepscan-*.jsonl kaydı bulunamadı.", errRead: "Kayıt okunamadı: ",
+    oldLog: "eski kayıt: çizilen çerçeveler kayıtta yok, tespitler gösteriliyor",
+  },
+};
+const params = new URLSearchParams(location.search);
+const LANG = params.get("lang") || ((navigator.language || "en").toLowerCase().startsWith("tr") ? "tr" : "en");
+const T = TEXT[LANG] || TEXT.en;
+document.documentElement.lang = LANG;
+document.title = T.title;
+document.querySelectorAll("[data-t]").forEach(el => { el.textContent = T[el.dataset.t]; });
+
+// The app's overlay colours (OverlayView.kt), so the page shows what the phone showed.
+const COL = { counted: "#2ECC71", candidate: "#FFB300", unread: "#E53935" };
+const $ = id => document.getElementById(id);
+const fmtT = s => { s = Math.max(0, s); const m = Math.floor(s / 60); return m + ":" + (s - m * 60).toFixed(1).padStart(4, "0"); };
+
+// ---------------------------------------------------------------- file sources
+/** Files chosen or dropped by the user: relative path -> File. */
+class LocalSource {
+  constructor(entries) { this.map = new Map(entries.map(e => [e.path.replace(/\\/g, "/").replace(/^\/+/, ""), e.file])); }
+  logs() { return [...this.map.keys()].filter(p => /(^|\/)sweepscan-[^/]*\.jsonl$/i.test(p)).sort(); }
+  has(path) { return this.map.has(path); }
+  async text(path) { const f = this.map.get(path); return f ? f.text() : null; }
+  async image(path) { const f = this.map.get(path); return f ? createImageBitmap(f) : null; }
+}
+/** A folder served over http: ?dir=<url>&log=<name>.jsonl */
+class HttpSource {
+  constructor(dir, log) { this.dir = dir.replace(/\/+$/, ""); this.log = log; }
+  logs() { return [this.log]; }
+  async text(path) { const r = await fetch(this.dir + "/" + path); return r.ok ? r.text() : null; }
+  async image(path) { const r = await fetch(this.dir + "/" + path); return r.ok ? createImageBitmap(await r.blob()) : null; }
+}
+
+async function entriesFromDrop(dataTransfer) {
+  const out = [];
+  const walk = (entry, prefix) => new Promise(resolve => {
+    if (entry.isFile) entry.file(f => { out.push({ path: prefix + entry.name, file: f }); resolve(); }, () => resolve());
+    else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const readAll = () => reader.readEntries(async batch => {
+        if (!batch.length) return resolve();
+        for (const e of batch) await walk(e, prefix + entry.name + "/");
+        readAll();
+      }, () => resolve());
+      readAll();
+    } else resolve();
+  });
+  const roots = [...dataTransfer.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  for (const r of roots) await walk(r, "");
+  if (!out.length) for (const f of dataTransfer.files) out.push({ path: f.name, file: f });
+  return out;
+}
+
+// ---------------------------------------------------------------- recording model
+function parseRecording(text, expectedText) {
+  const rec = { meta: null, frames: [], events: [], ops: [], expected: null, hasTracks: false, warnings: null };
+  const warn = (unread, uncounted) => { rec.warnings = rec.warnings || [0, 0]; rec.warnings[0] += unread; rec.warnings[1] += uncounted; };
+  let sawCountEvents = false;
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    let o;
+    try { o = JSON.parse(line); } catch (e) { continue; }       // a torn last line from a killed app
+    const type = o.type || (o.dets ? "frame" : "");
+    const at = Math.max(0, rec.frames.length - 1);
+    if (type === "meta") rec.meta = o;
+    else if (type === "frame") {
+      if (o.tr) { rec.hasTracks = true; rec.warnings = rec.warnings || [0, 0]; }
+      if (o.sus) warn(o.sus[0], o.sus[1]);
+      rec.frames.push(o);
+    } else if (type === "event") {
+      rec.events.push({ i: at, t: o.t, ev: o.ev, o });
+      if (o.ev === "count") { sawCountEvents = true; rec.ops.push({ i: at, op: "add", id: o.id, value: o.value }); }
+      else if (o.ev === "manual") rec.ops.push({ i: at, op: "add", id: o.id, value: o.value });
+      else if (o.ev === "undo" || o.ev === "remove") rec.ops.push({ i: at, op: "del", id: o.id });
+      else if (o.ev === "sweep_delete") rec.ops.push({ i: at, op: "pop", n: o.removed || 0 });
+      else if (o.ev === "new_session") rec.ops.push({ i: at, op: "clear" });
+      else if (o.ev === "reset" && o.reported) warn(o.unread || 0, o.uncounted || 0);
+    }
+  }
+  if (!sawCountEvents) {                                            // v0.2 logs: only the per-frame list
+    rec.ops = [];
+    rec.frames.forEach((f, i) => (f.counted || []).forEach(v => rec.ops.push({ i, op: "add", id: null, value: v })));
+  }
+  const t0 = rec.frames.length ? rec.frames[0].t : 0;
+  let accX = 0, accY = 0, lastImg = -1;
+  rec.frames.forEach((f, i) => {
+    f._s = (f.t - t0) / 1000;
+    accX += f.shift ? f.shift.dx : 0; accY += f.shift ? f.shift.dy : 0;
+    f._ax = accX; f._ay = accY;
+    if (f.img) lastImg = i;
+    f._img = lastImg;
+    f._unread = (f.tr || []).some(t => t[8] === 1 && t[7] === 1);
+  });
+  rec.duration = rec.frames.length ? rec.frames[rec.frames.length - 1]._s : 0;
+  if (expectedText) {
+    const rows = expectedText.split("\n").map(s => s.trim()).filter(Boolean);
+    const total = parseInt(rows[0], 10);
+    if (!Number.isNaN(total)) {
+      const per = new Map();
+      rows.slice(1).forEach(r => { const [code, n] = r.split(/\s+/); if (code && n) per.set(code, parseInt(n, 10)); });
+      rec.expected = { total, per };
+    }
+  }
+  return rec;
+}
+
+/** The session list as it stood after frame [index]: insertion-ordered barcode -> quantity. */
+function ledgerAt(rec, index) {
+  let entries = [];
+  for (const op of rec.ops) {
+    if (op.i > index) break;
+    if (op.op === "add") entries.push({ id: op.id, value: op.value, i: op.i });
+    else if (op.op === "del") { const k = entries.findIndex(e => e.id === op.id); if (k >= 0) entries.splice(k, 1); }
+    else if (op.op === "pop") entries.splice(Math.max(0, entries.length - op.n));
+    else if (op.op === "clear") entries = [];
+  }
+  const per = new Map();
+  entries.forEach(e => { const row = per.get(e.value) || { n: 0, last: -1 }; row.n++; row.last = Math.max(row.last, e.i); per.set(e.value, row); });
+  return { total: entries.length, per };
+}
+
+function compare(per, expected) {
+  let over = 0, under = 0;
+  const codes = new Set([...per.keys(), ...expected.per.keys()]);
+  codes.forEach(c => { const d = (per.get(c) ? per.get(c).n : 0) - (expected.per.get(c) || 0); if (d > 0) over += d; else under -= d; });
+  if (!expected.per.size) { const d = [...per.values()].reduce((a, r) => a + r.n, 0) - expected.total; if (d > 0) over = d; else under = -d; }
+  return { over, under };
+}
+
+// ---------------------------------------------------------------- state
+const S = { src: null, rec: null, logPath: "", dir: "", idx: 0, playing: false, images: new Map(), lastTick: 0, playClock: 0 };
+window.__viewer = S;                                                // for automated checks
+
+function showError(msg) { $("err").textContent = msg || ""; }
+
+async function openSource(src) {
+  showError("");
+  const logs = src.logs();
+  if (!logs.length) return showError(T.errNoLog);
+  S.src = src;
+  const sel = $("recSelect");
+  sel.innerHTML = "";
+  logs.forEach(p => { const o = document.createElement("option"); o.value = p; o.textContent = p.split("/").pop().replace(/\.jsonl$/, ""); sel.appendChild(o); });
+  sel.classList.toggle("hidden", logs.length < 2);
+  await openLog(logs[0]);
+}
+
+async function openLog(path) {
+  try {
+    const text = await S.src.text(path);
+    if (text == null) throw new Error(path);
+    const expected = await S.src.text(path.replace(/\.jsonl$/i, ".expected")).catch(() => null);
+    S.rec = parseRecording(text, expected);
+    if (!S.rec.frames.length) throw new Error("no frames");
+  } catch (e) { return showError(T.errRead + e.message); }
+  S.logPath = path;
+  S.dir = path.replace(/\.jsonl$/i, "");
+  S.idx = 0; S.playing = false; S.images.clear();
+  $("drop").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  const m = S.rec.meta || {};
+  const dev = m.device ? `${m.device.model || ""}` : "";
+  const app = m.app ? `v${m.app.name || m.app}` : "";
+  $("recInfo").textContent = [m.tag, dev, app, S.rec.hasTracks ? "" : T.oldLog].filter(Boolean).join(" · ");
+  document.querySelectorAll(".exp").forEach(el => el.classList.toggle("hidden", !S.rec.expected));
+  buildTiles(); buildEvents(); buildLegend(); resize(); render();
+}
+
+// ---------------------------------------------------------------- panels
+function tile(k, v, icon) { return `<div class="tile"><div class="k">${k}</div><div class="v">${icon ? `<span class="ic">${icon}</span>` : ""}${v}</div></div>`; }
+
+function buildTiles() {
+  const r = S.rec, end = ledgerAt(r, r.frames.length - 1);
+  const images = r.frames.filter(f => f.img).length;
+  let html = tile(T.tDuration, fmtT(r.duration)) + tile(T.tFrames, r.frames.length) +
+    tile(T.tFps, r.duration ? (r.frames.length / r.duration).toFixed(1) : "–") +
+    tile(T.tBoxes, end.total) + tile(T.tVariants, end.per.size) + tile(T.tImages, images);
+  if (r.warnings) html += tile(T.tUnreadWarn, r.warnings[0], r.warnings[0] ? "!" : "") + tile(T.tFewReads, r.warnings[1], r.warnings[1] ? "!" : "");
+  if (r.expected) {
+    const c = compare(end.per, r.expected);
+    html += tile(T.tExpected, r.expected.total) +
+      tile(T.tOver, c.over, c.over ? "▲" : "✓") + tile(T.tUnder, c.under, c.under ? "▼" : "✓");
+  }
+  $("tiles").innerHTML = html;
+}
+
+function buildLegend() {
+  $("legend").innerHTML =
+    `<span><i style="border-color:${COL.counted};background:${COL.counted}55"></i>${T.lCounted}</span>` +
+    `<span><i style="border-color:${COL.candidate}"></i>${T.lCandidate}</span>` +
+    `<span><i style="border-color:${COL.unread};background:${COL.unread}44"></i>! ${T.lUnread}</span>` +
+    `<span>${T.lHidden}</span>`;
+}
+
+function buildEvents() {
+  const box = $("events");
+  box.innerHTML = "";
+  const t0 = S.rec.frames[0].t;
+  S.rec.events.forEach(e => {
+    const row = document.createElement("div");
+    const detail = e.o.value ? " " + e.o.value : e.ev === "sweep_delete" ? ` (${e.o.removed})` : "";
+    row.innerHTML = `<span class="t">${fmtT((e.t - t0) / 1000)}</span><span>${(T.ev[e.ev] || e.ev) + detail}</span>`;
+    row.onclick = () => seek(e.i);
+    box.appendChild(row);
+  });
+}
+
+function renderCounts() {
+  const r = S.rec, led = ledgerAt(r, S.idx), body = $("counts").tBodies[0];
+  $("countTitle").textContent = T.countSoFar(led.total, led.per.size);
+  const codes = [...led.per.keys()];
+  if (r.expected) r.expected.per.forEach((_, c) => { if (!led.per.has(c)) codes.push(c); });
+  const atEnd = S.idx >= r.frames.length - 1;
+  body.innerHTML = codes.map(c => {
+    const row = led.per.get(c), n = row ? row.n : 0;
+    let exp = "", st = "";
+    if (r.expected) {
+      const e = r.expected.per.get(c);
+      exp = `<td class="n">${e == null ? "–" : e}</td>`;
+      if (r.expected.per.size) {
+        const d = n - (e || 0);
+        // "Missing" is only a verdict once the recording is over; before that it is just "not yet".
+        st = e == null ? `<span class="st over">${T.notExpected}</span>`
+          : d > 0 ? `<span class="st over">${T.over(d)}</span>`
+          : d < 0 ? (atEnd ? `<span class="st under">${T.under(-d)}</span>` : "")
+          : `<span class="st ok">${T.ok}</span>`;
+      }
+      st = `<td>${st}</td>`;
+    }
+    const fresh = row && row.last === S.idx ? ' class="new"' : "";
+    return `<tr${fresh}><td>${c}</td><td class="n">${n}</td>${exp}${st}</tr>`;
+  }).join("");
+}
+
+function renderInfo() {
+  const r = S.rec, f = r.frames[S.idx], prev = r.frames[S.idx - 1];
+  const rows = [[T.iTime, fmtT(f._s)], [T.iFrame, `${S.idx + 1} / ${r.frames.length}` + (f.img ? ` · ${f.img}` : "")]];
+  if (prev && f.t > prev.t) rows.push([T.iFps, (1000 / (f.t - prev.t)).toFixed(1)]);
+  const cap = f.cap;
+  if (cap) {
+    if (cap.exp != null) rows.push([T.iExposure, (cap.exp / 1e6).toFixed(1) + " ms"]);
+    if (cap.iso != null) rows.push([T.iIso, cap.iso]);
+    if (cap.fd != null) rows.push([T.iFocus, cap.fd > 0 ? (1 / cap.fd).toFixed(2) + " m" : "∞"]);
+  }
+  if (f.luma != null) rows.push([T.iLuma, f.luma]);
+  if (f.shift) rows.push([T.iMotion, `${f.shift.dx.toFixed(1)}, ${f.shift.dy.toFixed(1)} px · ${f.shift.src}`]);
+  if (f.motion && f.motion.a) {
+    const a = f.motion.a, sc = Math.hypot(a[0], a[3]), rot = Math.atan2(a[3], a[0]) * 180 / Math.PI;
+    rows.push([T.iSim, `${rot.toFixed(2)}° · ×${sc.toFixed(4)} (${Math.round((f.motion.in || 0) * 100)}%)`]);
+  }
+  if (f.blurH != null) rows.push([T.iBlur, f.blurH + " px"]);
+  if (f.ms) rows.push([T.iTimes, `${f.ms.ml} / ${f.ms.zx} / ${f.ms.of} ms`]);
+  const verdicts = {};
+  (f.dets || []).forEach(d => { const k = d.r || (d.v ? "OK" : "LOCATED"); verdicts[k] = (verdicts[k] || 0) + 1; });
+  rows.push([T.iDets, Object.keys(verdicts).length ? Object.entries(verdicts).map(([k, n]) => `${k} ${n}`).join(" · ") : "0"]);
+  if (f.tr) rows.push([T.iTracks, f.tr.length]);
+  $("info").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+}
+
+// ---------------------------------------------------------------- stage
+async function imageFor(index) {
+  const f = S.rec.frames[index];
+  if (!f || !f.img) return null;
+  if (S.images.has(index)) return S.images.get(index);
+  const promise = S.src.image(S.dir + "/" + f.img).catch(() => null);
+  S.images.set(index, promise);
+  if (S.images.size > 40) S.images.delete(S.images.keys().next().value);
+  return promise;
+}
+
+function drawUpright(ctx, img, rot, W, H) {
+  ctx.save();
+  if (rot === 90) { ctx.translate(W, 0); ctx.rotate(Math.PI / 2); }
+  else if (rot === 180) { ctx.translate(W, H); ctx.rotate(Math.PI); }
+  else if (rot === 270) { ctx.translate(0, H); ctx.rotate(-Math.PI / 2); }
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+
+let renderToken = 0;
+async function renderStage() {
+  const token = ++renderToken;
+  const r = S.rec, f = r.frames[S.idx], cv = $("stage"), ctx = cv.getContext("2d");
+  const W = f.w || 720, H = f.h || 1280, dpr = window.devicePixelRatio || 1;
+  const cw = cv.width / dpr, ch = cv.height / dpr, s = Math.min(cw / W, ch / H);
+  const ox = (cw - W * s) / 2, oy = (ch - H * s) / 2;
+
+  // The frame's own image, or the last saved one moved by the scene shift measured since.
+  let img = null, dx = 0, dy = 0, note = T.noImage, alpha = 1;
+  const j = f._img;
+  if (f.img) { img = await imageFor(S.idx); note = ""; }
+  else if (j >= 0 && $("showGhost").checked) {
+    const age = f._s - r.frames[j]._s;
+    if (age <= 4) { img = await imageFor(j); dx = f._ax - r.frames[j]._ax; dy = f._ay - r.frames[j]._ay; alpha = 0.55; note = T.carried(age.toFixed(1)); }
+  }
+  if (token !== renderToken) return;                                  // a newer frame was requested meanwhile
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+  ctx.fillStyle = "#1c1c20"; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+  if (img) { ctx.globalAlpha = alpha; ctx.translate(dx, dy); drawUpright(ctx, img, f.rot || 0, W, H); }
+  ctx.restore();
+  $("noimg").textContent = note; $("noimg").classList.toggle("hidden", !note);
+
+  const px = 1 / s;                                                    // one screen pixel in image units
+  const boxOf = b => [b[0], b[1], b[2] - b[0], b[3] - b[1]];
+  if ($("showDets").checked || !f.tr) {
+    ctx.font = `${11 * px}px system-ui`; ctx.lineWidth = 1.5 * px; ctx.setLineDash([]);
+    (f.dets || []).forEach(d => {
+      const verdict = d.r || (d.v ? "OK" : "LOCATED");
+      ctx.strokeStyle = verdict === "OK" ? "#7fd4ff" : "#ffd27f";
+      ctx.strokeRect(...boxOf(d.b));
+      const label = verdict + (d.e ? " " + d.e : "");
+      ctx.fillStyle = "rgba(0,0,0,.7)"; ctx.fillRect(d.b[0], d.b[3], ctx.measureText(label).width + 6 * px, 14 * px);
+      ctx.fillStyle = "#fff"; ctx.fillText(label, d.b[0] + 3 * px, d.b[3] + 11 * px);
+    });
+  }
+  (f.tr || []).forEach(t => {
+    const [id, l, tp, rt, bt, value, counted, visible, unread] = t;
+    const colour = unread ? COL.unread : counted ? COL.counted : COL.candidate;
+    ctx.setLineDash(visible ? [] : [10 * px, 8 * px]);
+    ctx.lineWidth = 3 * px; ctx.strokeStyle = colour;
+    ctx.fillStyle = colour + (unread ? "44" : counted ? "55" : "22");
+    ctx.fillRect(l, tp, rt - l, bt - tp); ctx.strokeRect(l, tp, rt - l, bt - tp);
+    ctx.setLineDash([]);
+    if (unread) {
+      ctx.fillStyle = COL.unread; ctx.beginPath(); ctx.arc(l, tp, 11 * px, 0, 7); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.font = `bold ${15 * px}px system-ui`; ctx.textAlign = "center"; ctx.fillText("!", l, tp + 5 * px); ctx.textAlign = "start";
+    } else if (value) {
+      const label = String(value).slice(-5);
+      ctx.font = `bold ${13 * px}px system-ui`;
+      const w = ctx.measureText(label).width + 8 * px, h = 19 * px;
+      ctx.fillStyle = "rgba(0,0,0,.67)"; ctx.fillRect(l, tp - h, w, h);
+      ctx.fillStyle = "#fff"; ctx.fillText(label, l + 4 * px, tp - 5 * px);
+    }
+  });
+  // Warm the cache for smooth playback.
+  for (let k = S.idx + 1; k < Math.min(S.idx + 12, r.frames.length); k++) if (r.frames[k].img) { imageFor(k); break; }
+}
+
+// ---------------------------------------------------------------- timeline
+const TL = { padL: 86, padR: 10, rows: [14, 34, 54] };
+function tlX(i) { const cv = $("timeline"), w = cv.clientWidth - TL.padL - TL.padR; return TL.padL + (S.rec.frames[i]._s / (S.rec.duration || 1)) * w; }
+function tlIndexAt(x) {
+  const cv = $("timeline"), w = cv.clientWidth - TL.padL - TL.padR;
+  const s = Math.min(1, Math.max(0, (x - TL.padL) / w)) * S.rec.duration;
+  let lo = 0, hi = S.rec.frames.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (S.rec.frames[mid]._s < s) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function renderTimeline() {
+  const cv = $("timeline"), dpr = window.devicePixelRatio || 1, ctx = cv.getContext("2d"), r = S.rec;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  ctx.font = "11px system-ui"; ctx.fillStyle = css("--text-2"); ctx.textBaseline = "middle";
+  [T.rowCount, T.rowUnread, T.rowImages].forEach((name, k) => ctx.fillText(name, 4, TL.rows[k]));
+  ctx.strokeStyle = css("--hair"); ctx.lineWidth = 1;
+  TL.rows.forEach(y => { ctx.beginPath(); ctx.moveTo(TL.padL, y + 9.5); ctx.lineTo(w - TL.padR, y + 9.5); ctx.stroke(); });
+
+  // Paused stretches: between a pause and the next resume.
+  ctx.fillStyle = css("--surface-2");
+  let pausedFrom = null;
+  r.events.forEach(e => {
+    if (e.ev === "pause") pausedFrom = e.i;
+    else if (e.ev === "resume" && pausedFrom != null) { ctx.fillRect(tlX(pausedFrom), 2, Math.max(2, tlX(e.i) - tlX(pausedFrom)), h - 4); pausedFrom = null; }
+  });
+  if (pausedFrom != null) ctx.fillRect(tlX(pausedFrom), 2, w - TL.padR - tlX(pausedFrom), h - 4);
+
+  ctx.fillStyle = css("--good");
+  r.ops.forEach(op => { if (op.op === "add") ctx.fillRect(tlX(op.i) - 1, TL.rows[0] - 7, 2, 14); });
+  ctx.fillStyle = css("--crit");
+  r.frames.forEach((f, i) => { if (f._unread) ctx.fillRect(tlX(i) - 0.5, TL.rows[1] - 5, 1.5, 10); });
+  ctx.fillStyle = css("--axis");
+  r.frames.forEach((f, i) => { if (f.img) ctx.fillRect(tlX(i) - 0.5, TL.rows[2] - 3, 1.5, 6); });
+  ctx.strokeStyle = css("--text-2"); ctx.setLineDash([3, 3]);
+  r.events.forEach(e => { if (["pause", "resume", "reset", "sweep_delete", "new_session"].includes(e.ev)) { const x = tlX(e.i); ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x, h - 2); ctx.stroke(); } });
+  ctx.setLineDash([]);
+  const x = tlX(S.idx);
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+}
+
+// ---------------------------------------------------------------- playback
+function render() {
+  if (!S.rec) return;
+  const f = S.rec.frames[S.idx];
+  $("clock").textContent = `${fmtT(f._s)} / ${fmtT(S.rec.duration)}`;
+  $("play").textContent = S.playing ? "⏸" : "▶";
+  renderStage(); renderCounts(); renderInfo(); renderTimeline();
+}
+function seek(i) { S.idx = Math.min(S.rec.frames.length - 1, Math.max(0, i)); S.playClock = S.rec.frames[S.idx]._s; render(); }
+function tick(now) {
+  if (!S.playing) return;
+  const speed = parseFloat($("speed").value);
+  S.playClock += ((now - S.lastTick) / 1000) * speed; S.lastTick = now;
+  let i = S.idx;
+  while (i + 1 < S.rec.frames.length && S.rec.frames[i + 1]._s <= S.playClock) i++;
+  if (i !== S.idx) { S.idx = i; render(); }
+  if (i >= S.rec.frames.length - 1) { S.playing = false; render(); return; }
+  requestAnimationFrame(tick);
+}
+function togglePlay() {
+  if (!S.rec) return;
+  S.playing = !S.playing;
+  if (S.playing) {
+    if (S.idx >= S.rec.frames.length - 1) S.idx = 0;
+    S.playClock = S.rec.frames[S.idx]._s; S.lastTick = performance.now(); requestAnimationFrame(tick);
+  }
+  render();
+}
+function jump(pred) { for (let i = S.idx + 1; i < S.rec.frames.length; i++) if (pred(i)) return seek(i); }
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  for (const id of ["stage", "timeline"]) { const cv = $(id); cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(cv.clientHeight * dpr); }
+  render();
+}
+
+// ---------------------------------------------------------------- wiring
+$("play").onclick = togglePlay;
+$("prev").onclick = () => seek(S.idx - 1);
+$("next").onclick = () => seek(S.idx + 1);
+$("nextCount").onclick = () => { const marks = new Set(S.rec.ops.filter(o => o.op === "add").map(o => o.i)); jump(i => marks.has(i)); };
+$("nextUnread").onclick = () => jump(i => S.rec.frames[i]._unread && !S.rec.frames[i - 1]._unread);
+$("showDets").onchange = render; $("showGhost").onchange = render;
+$("recSelect").onchange = e => openLog(e.target.value);
+$("openBtn").onclick = $("openBtn2").onclick = () => $("dirInput").click();
+$("dirInput").onchange = e => openSource(new LocalSource([...e.target.files].map(f => ({ path: f.webkitRelativePath || f.name, file: f }))));
+window.addEventListener("resize", resize);
+window.addEventListener("keydown", e => {
+  if (!S.rec || e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  const step = e.shiftKey ? 10 : 1;
+  if (e.key === " ") { e.preventDefault(); togglePlay(); }
+  else if (e.key === "ArrowRight") seek(S.idx + step);
+  else if (e.key === "ArrowLeft") seek(S.idx - step);
+  else if (e.key === "Home") seek(0);
+  else if (e.key === "End") seek(S.rec.frames.length - 1);
+});
+window.addEventListener("dragover", e => { e.preventDefault(); $("drop").classList.add("over"); });
+window.addEventListener("dragleave", () => $("drop").classList.remove("over"));
+window.addEventListener("drop", async e => { e.preventDefault(); $("drop").classList.remove("over"); openSource(new LocalSource(await entriesFromDrop(e.dataTransfer))); });
+
+const tl = $("timeline"), tip = $("tip");
+let dragging = false;
+const tlSeek = e => seek(tlIndexAt(e.offsetX));
+tl.addEventListener("mousedown", e => { dragging = true; tlSeek(e); });
+window.addEventListener("mouseup", () => { dragging = false; });
+tl.addEventListener("mousemove", e => {
+  if (!S.rec) return;
+  if (dragging) tlSeek(e);
+  const i = tlIndexAt(e.offsetX), f = S.rec.frames[i], led = ledgerAt(S.rec, i);
+  const near = S.rec.events.filter(ev => Math.abs(tlX(ev.i) - e.offsetX) < 4).map(ev => (T.ev[ev.ev] || ev.ev) + (ev.o.value ? " " + ev.o.value : ""));
+  tip.innerHTML = `${fmtT(f._s)} · ${T.tBoxes.toLowerCase()}: ${led.total}` + (f._unread ? ` · ! ${T.lUnread}` : "") + (near.length ? "<br>" + [...new Set(near)].slice(0, 4).join("<br>") : "");
+  tip.style.left = Math.min(tl.clientWidth - 90, Math.max(90, e.offsetX)) + "px"; tip.style.display = "block";
+});
+tl.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+
+if (params.get("dir") && params.get("log")) openSource(new HttpSource(params.get("dir"), params.get("log")));
+</script>
+</body>
+</html>

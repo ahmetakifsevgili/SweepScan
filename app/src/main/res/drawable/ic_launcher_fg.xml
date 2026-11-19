@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon foreground: barcode bars (what the camera reads) under a map pin (where it is).
+     Everything stays inside the 66 dp safe circle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#C6E81B" android:pathData="M33,48h3v26h-3z M39,48h1.5v26h-1.5z M43,48h4v26h-4z M50,48h1.5v26h-1.5z M54,48h3v26h-3z M60,48h1.5v26h-1.5z M64,48h4v26h-4z M71,48h1.5v26h-1.5z M74,48h1.5v26h-1.5z" />
+    <path android:fillColor="#FFB300" android:pathData="M54,25c-6.1,0 -11,4.9 -11,11c0,8.3 11,19 11,19s11,-10.7 11,-19c0,-6.1 -4.9,-11 -11,-11zM54,40.5c-2.5,0 -4.5,-2 -4.5,-4.5s2,-4.5 4.5,-4.5 4.5,2 4.5,4.5 -2,4.5 -4.5,4.5z" />
+</vector>
